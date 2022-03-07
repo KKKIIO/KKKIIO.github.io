@@ -21,10 +21,10 @@ func Payment(request *Request) (result *Result) {
 	result = &Result{Status:Pending}
 	url := buildUrl(request)
 	body := buildBody(request)
-	requestLog.URL = url								// 1. noisy log
-	requestLog.RequestBody = body						// log
-	response, err:= http.PostJson(url, body)			// 2. global func!
-	requestLog.Err = err								// log
+	requestLog.URL = url // 1. noisy log
+	requestLog.RequestBody = body // log
+	response, err:= http.PostJson(url, body) // 2. global func!
+	requestLog.Err = err // log
 	if err != nil {
 		result.Err = err
 		return
@@ -40,7 +40,7 @@ func handleResponse(response *Response, requestLog *RequestLog, result *Result) 
 		result.Err = err
 		return
 	}
-	requestLog.ProviderErrorCode = body.code       // log
+	requestLog.ProviderErrorCode = body.code // log
 	requestLog.ProviderErrorMessage = body.message // log
 	// ...
 }
@@ -117,7 +117,7 @@ func (f *PaymentFlow) Payment(request *Request) (result *Result) {
 
 那一周我都在加班，带着我修修补补的框架。
 
-到了测试阶段，QA 过来找我：“为什么会改到其他供应商的文件？因为 go 接口变了？这不在本次测试范围内，有潜在风险”。
+到了测试阶段，QA 过来找我：“为什么会改动其他供应商的文件？因为 go 接口变了？这不在本次测试范围内，有风险”。
 
 我麻了。
 
@@ -125,7 +125,7 @@ func (f *PaymentFlow) Payment(request *Request) (result *Result) {
 
 没多久又要接新的供应商。
 
-这次我先复制了以前的代码，然后根据需求修改、简化。写出来的代码简单、Bug 少、隔离性强，省了我很多时间，也没有人说我写代码很绕了。
+这次我先复制了以前的代码，然后根据需求修改、简化。整个过程迅速、简单，写出来的代码 Bug 少、隔离性强，也没有人说我写代码很绕了。
 
 我悟了，我理解了[KISS](https://en.wikipedia.org/wiki/KISS_principle)，理解了[重复好过依赖](https://yosefk.com/blog/redundancy-vs-dependencies-which-is-worse.html)，理解了[反脆弱](https://book.douban.com/subject/25782902/)。
 
@@ -168,7 +168,7 @@ func Transaction(db string, fn func(o *Orm) error) (err error) {
 2. 尝试用常见 panic 错误搜索日志，定位到一个空指针 Bug 导致 panic
 3. 查看调用链，发现实现事务的 `Transaction` 函数处理 panic 时不 `Rollback` 事务
 
-这是一次顺利的问题排查，我有些自豪，接着向 Leader 说明了这些 Bug，并就`Transaction` 的问题提了一个自然的 Hotfix 修复方案：“只需在 `Transaction` 里只需增加一行 `Rollback` 代码”。
+这是一次顺利的问题排查，我有些自豪，开完会的 Leader 刚坐下来，我就过去跟他说了这些问题，并就`Transaction` 的问题提了一个自然的 Hotfix 修复方案：“只需在 `Transaction` 里只需增加一行 `Rollback` 代码”。
 
 为了严谨，我补充了一句：“看上去不会增加额外问题，但理论上影响范围包含**所有**服务”。
 
@@ -202,4 +202,4 @@ Leader 也知道了，问了我一样的问题。
 
 ## 回顾
 
-冗余有低风险、简单、灵活等好处，但是会提高长期维护成本，项目的健康发展需要持续维护代码质量。
+冗余有低风险、简单、灵活等好处，但是会提高长期维护成本和风险，项目的健康发展需要持续维护代码质量。
