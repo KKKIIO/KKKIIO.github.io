@@ -127,7 +127,7 @@ func (f *PaymentFlow) Payment(request *Request) (result *Result) {
 
 这次我先复制了以前的代码，然后根据需求修改、简化。整个过程迅速、简单，写出来的代码 Bug 少、隔离性强，也没有人说我写代码很绕了。
 
-我悟了，我理解了[KISS](https://en.wikipedia.org/wiki/KISS_principle)，理解了[重复好过依赖](https://yosefk.com/blog/redundancy-vs-dependencies-which-is-worse.html)，理解了[反脆弱](https://book.douban.com/subject/25782902/)。
+我开始[心安理得](https://yosefk.com/blog/redundancy-vs-dependencies-which-is-worse.html)地复制代码。
 
 ## 那么，代价呢？
 
@@ -182,13 +182,13 @@ Leader 选择了第二种方案，我增加了 `TransactionV2` 函数。
 
 一天晚上我洗完澡，看到有 Leader 的未接来电，我赶紧回拨，Leader 说我负责的模块有告警，让我帮忙看一下怎么回事。
 
-打开电脑，发现工作群里同事们都在排查，资损有些严重。跟同事们讨论，他们已经确认跟我负责的模块没关系，但我不好意思直接收工，就“主动”地参与问题排查。
+打开电脑，发现群里不少同事在排查问题，资损有些严重。在与同事确认问题跟我负责的模块无关后，我开始从容地排查问题。
 
 检查了一会日志，我发现有些 goroutine 像是消失了，没有继续写日志。刚好群里发过调用栈 Dump，打开一看，又是数据库连接没有释放的问题。于是我熟练地找到 panic 日志，发到群里解释，panic 问题很快被修复了。
 
 ### 1%的责任
 
-第二天早上，一些同事夸我能力强，很快就定位到这个隐秘的问题。我谦虚地告诉他们，之所以定位快是因为我遇过这个 Bug，当时还写了`TransactionV2` 来解决问题。
+隔天早上，有同事夸我能力强，这么快定位到这个隐秘的 Bug。我谦虚地告诉他们，之所以定位快是因为我遇过这个 Bug，当时还写了`TransactionV2` 来解决问题。
 
 “你既然知道这个 Bug，为什么不直接修正原来的 `Transaction` 函数呢？”
 
