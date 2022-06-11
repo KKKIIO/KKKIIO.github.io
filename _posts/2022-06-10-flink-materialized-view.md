@@ -9,6 +9,8 @@ categories: stream-processing database
 
 ## Materialized View
 
+![Materialized View](https://docs.microsoft.com/en-us/azure/architecture/patterns/_images/materialized-view-pattern-diagram.png)
+
 用 SQL 可以很方便表达出我们需要的数据，但性能很差。如果能把数据预计算到一张表或 ES 索引，就能缩短读路径，得到合理的查询性能，这种方案叫[Materialized View](https://en.wikipedia.org/wiki/Materialized_view)。
 
 Materialized View 有两种实现方式：
