@@ -20,7 +20,7 @@ Materialized View 有两种实现方式：
 
 恰巧隔天看一个[新闻](https://www.infoq.cn/article/OIFS2PtAZlMsgBbsW6eO)提到流数据库，突然想到可以用 [Flink](https://nightlies.apache.org/flink/flink-docs-release-1.13/) SQL 实现 Materialized View，这方案行得通的话可以同时获得两种方案的优点：极少工作量的 SQL + 自动增量更新。
 
-我很快实现了[一版](https://github.com/KKKIIO/materialized_view_flink)，途中遇到一些部署难和文档不全的问题，所幸 Flink SQL 的简洁强大到达了我的预期。我还写了 Flink DataStream 流处理实现 Materialized View 的方案，对比 Flink SQL 方案和自研方案。
+我很快实现了[一版](https://github.com/KKKIIO/materialized_view_flink)，途中遇到一些部署难和文档不全的问题，所幸 Flink SQL 的简洁强大到达了我的预期。末尾我还写了 Flink DataStream 流处理实现 Materialized View 的方案作为对比，感兴趣可以看一下。
 
 ## 用 Flink SQL 实现 Materialized View
 
@@ -144,7 +144,27 @@ after waiting 3s, mismatch count: 0
 
 也很直观，容易对应到 SQL 的 Join。
 
-## 用 Flink DataStream 实现 Materialized View
+## Flink SQL 的工程问题
+
+Flink SQL 这么简洁，这个解决方案可以在生产环境上用吗？
+
+可以，但**门槛**有些高。
+
+### 繁重的部署
+
+![Flink Architecture](https://nightlies.apache.org/flink/flink-docs-master/fig/deployment_overview.svg)
+
+Flink 一般作为集群部署，写一个计算程序需要部署上图这么多组件（即便出了[Application Mode](https://flink.apache.org/news/2020/07/14/application-mode.html)可以向 Kubernetes 提交单应用集群简化部署，组件还是一个没少），一般人都会犹豫，害怕一个问题变成两个问题。
+
+相比，如果你能用 CLI 连接流数据库，直接输入 SQL 就能得到一个 Materialized View，是不是更让人心动呢？
+
+### 高复杂度
+
+用一个 Go 程序，把 Binlog 位置和计算结果都放到 MySQL，这样简单的方案即使出现问题，你都能很快地定位到并修复它。
+
+而像 Flink 这样一个追求通用、高可用、强一致性的一个庞大的框架（跟所有的 Java 框架一样），你很难对它有掌握感，Java 库泛滥的 Runtime Dispatch 也是我本次看源码解决问题时的一个头疼的点。
+
+## 附：用 Flink DataStream 实现 Materialized View
 
 Flink 跟 MapReduce 、 Apache Storm 那段大数据时期的项目一样，一开始就提供了编程接口 [DataStream API](https://nightlies.apache.org/flink/flink-docs-release-1.13/docs/learn-flink/datastream_api/)。我们用 DataStream API 重新实现一下 Materialized View，对比一下其他方案，还可以看到 Flink 里的一些流处理概念。
 
@@ -380,22 +400,9 @@ Flink DataStream 明显难用了很多，它需要你处理具体的（增删改
 
 Flink DataStream 理论上可以做的事情比 Flink SQL 多，但代码多了，可能出错的地方也会变多，例如我一开始没有考虑 Order 是否是新增事件就递增了`state.orderCount`。
 
-## Flink SQL Vs All
+### DataStream Vs Homemade Program
 
-Flink SQL 这么简洁，这个解决方案可以在生产环境上用吗？
+基本上自研程序也是在做流处理：监听变化事件、写入计算结果，实现思路是差不多的。不同点在于高可用和强一致的方案：
 
-可以，但**门槛**有些高。
-
-### 繁重的部署
-
-![Flink Architecture](https://nightlies.apache.org/flink/flink-docs-master/fig/deployment_overview.svg)
-
-Flink 一般作为集群部署，写一个计算程序需要部署上图这么多组件（即便出了[Application Mode](https://flink.apache.org/news/2020/07/14/application-mode.html)可以向 Kubernetes 提交单应用集群简化部署，组件还是一个没少），一般人都会犹豫，害怕一个问题变成两个问题。
-
-相比，如果你能用 CLI 连接流数据库，直接输入 SQL 就能得到一个 Materialized View，是不是更让人心动呢？
-
-### 高复杂度
-
-用一个 Go 程序，把 Binlog 位置和计算结果都放到 MySQL，这样简单的方案即使出现问题，你都能很快地定位到并修复它。
-
-而像 Flink 这样一个追求通用、高可用、强一致性的一个庞大的框架（跟所有的 Java 框架一样），你很难对它有掌握感，Java 库泛滥的 Runtime Dispatch 也是我本次看源码解决问题时的一个头疼的点。
+- Flink 可以定时 Checkpoint 各个步骤的 State ，增强每个步骤的模块化，坏处是要提供额外的存储(`EmbeddedRocksDBStateBackend`)，而且 Flink 只（能）保证内部状态的一致性，外部结果只能保证最终一致性，例如重启 Flink Job 可能会导致 MySQL 数据“回退”几秒。
+- 自研程序要自己实现 **事务性的存取** Binlog 位置和计算中间结果等数据，好处是可以实现端到端(end-to-end)的一致性，例如使用 MySQL 事务存取。
