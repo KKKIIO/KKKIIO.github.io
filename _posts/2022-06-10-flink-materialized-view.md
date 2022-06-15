@@ -7,20 +7,20 @@ categories: stream-processing database
 
 几周前面试遇到一道题：在一个预约业务里，展示顾客复购的情况，是典型的在几张业务表上聚合信息的需求。
 
-## Materialized View
+## Materialized View 方案
+
+用 SQL 可以很方便表达出我们需要的数据，但性能很差。如果能把数据预计算到一张表或 ES 索引，就能缩短读路径，得到合理的查询性能，这种方案叫[物化视图(Materialized View)](https://en.wikipedia.org/wiki/Materialized_view)。
 
 ![Materialized View](https://docs.microsoft.com/en-us/azure/architecture/patterns/_images/materialized-view-pattern-diagram.png)
-
-用 SQL 可以很方便表达出我们需要的数据，但性能很差。如果能把数据预计算到一张表或 ES 索引，就能缩短读路径，得到合理的查询性能，这种方案叫[Materialized View](https://en.wikipedia.org/wiki/Materialized_view)。
 
 Materialized View 有两种实现方式：
 
 - 存储服务原生实现：跟用 SQL 创建 View 一样，很方便，但功能一般不全。像 PostgreSQL 提供的 [Materialized Views](https://www.postgresql.org/docs/current/rules-materializedviews.html)，要用户用`REFRESH`更新，也就是不能自动增量更新。
 - 外部程序同步数据：开发外部程序监听数据存储的变化([Change Data Capture(CDC)](https://en.wikipedia.org/wiki/Change_data_capture))，经过一些计算再把结果写进存储服务，例如写程序读 MySQL Binlog 增量更新结果。好处是灵活不受限制，但坏在需要开发工作。
 
-恰巧隔天看一个[新闻](https://www.infoq.cn/article/OIFS2PtAZlMsgBbsW6eO)提到流数据库，突然想到可以用 [Flink](https://nightlies.apache.org/flink/flink-docs-release-1.13/) SQL 实现 Materialized View，这方案行得通的话可以同时获得两种方案的优点：极少工作量的 SQL + 自动增量更新。
+这两种方式都有明显优缺点，最好是能用 SQL 定义，还能自动增量更新。恰巧隔天看一个[新闻](https://www.infoq.cn/article/OIFS2PtAZlMsgBbsW6eO)提到流数据库，突然想到可以用流处理框架 [Flink](https://nightlies.apache.org/flink/flink-docs-release-1.13/) 的 SQL 实现 Materialized View，这方案行得通的话我们就可以同时拥有两个优点：极少工作量的 SQL + 自动增量更新。
 
-我很快实现了[一版](https://github.com/KKKIIO/materialized_view_flink)，途中遇到一些部署难和文档不全的问题，所幸 Flink SQL 的简洁强大到达了我的预期。末尾我还写了 Flink DataStream 流处理实现 Materialized View 的方案作为对比，感兴趣可以看一下。
+我很快写了用 Flink SQL 解决这道面试题的[Demo](https://github.com/KKKIIO/materialized_view_flink)，途中遇到一些部署难和文档不全的问题，所幸 Flink SQL 的简洁强大到达了我的预期。末尾我还写了 Flink DataStream 用算子实现 Materialized View 的方案作为对比，感兴趣可以看一下。
 
 ## 用 Flink SQL 实现 Materialized View
 
@@ -72,19 +72,21 @@ TableEnvironment env = TableEnvironment.create(EnvironmentSettings.newInstance()
 
 env.getConfig().getConfiguration().setString("execution.checkpointing.interval", "3s");
 
-String cdcOptSQL = String.format(
-        "WITH ('connector'='mysql-cdc', 'hostname'='%s', 'port'='%d','username'='%s', 'password'='%s', 'database-name'='%s', 'table-name'='%%s')",
+val cdcOptSQL = String.format(
+        "WITH ('connector'='mysql-cdc', 'hostname'='%s', 'port'='%d','username'='%s', 'password'='%s', 'database-name'='%s', 'table-name'='%%s', 'server-id'='%%d')",
         mysqlHost, mysqlPort, mysqlUser, mysqlPassword, mysqlDb);
 env.executeSql(
         "CREATE TEMPORARY TABLE customer_tab (id BIGINT, first_name STRING, last_name STRING, PRIMARY KEY(id) NOT ENFORCED) "
-                + String.format(cdcOptSQL, "customer_tab"));
+                + String.format(cdcOptSQL, "customer_tab", 5401));
 env.executeSql(
         "CREATE TEMPORARY TABLE order_tab (id BIGINT, customer_id BIGINT, order_time BIGINT, create_time BIGINT, PRIMARY KEY(id) NOT ENFORCED) "
-                + String.format(cdcOptSQL, "order_tab"));
+                + String.format(cdcOptSQL, "order_tab", 5402));
 env.executeSql(
         "CREATE TEMPORARY TABLE customer_preference_tab (customer_id BIGINT, frequency INT, PRIMARY KEY(customer_id) NOT ENFORCED) "
-                + String.format(cdcOptSQL, "customer_preference_tab"));
+                + String.format(cdcOptSQL, "customer_preference_tab", 5403));
 ```
+
+除了连接配置和列类型，表定义跟 MySQL 几乎是一样的。
 
 ### Flink SQL 写入表数据
 
