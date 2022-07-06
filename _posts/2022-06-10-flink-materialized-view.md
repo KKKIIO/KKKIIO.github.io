@@ -1,8 +1,9 @@
 ---
 layout: post
-title: "用Flink解面试题"
+title: "几行 Flink SQL 实现物化视图"
 date: 2022-06-10 11:35:00 +0800
-categories: stream-processing database
+categories: engineering
+tags: stream-processing database
 ---
 
 几周前面试遇到一道题：在一个预约业务里，展示顾客复购的情况，是典型的在几张业务表上聚合信息的需求。

@@ -2,7 +2,7 @@
 layout: post
 title: "心安理得地复制代码"
 date: 2022-03-03 11:35:00 +0800
-categories: development redundancy
+categories: engineering
 ---
 
 > 强韧和反脆弱性的系统不必像脆弱的系统一样，后者必须精确地理解这个世界，因而它们不需要预测，这让生活变得简单许多。
