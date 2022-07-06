@@ -10,7 +10,7 @@ tags: stream-processing database
 
 几周前面试遇到一道题：在一个预约业务里，展示顾客复购的情况，是典型的在几张业务表上聚合信息的需求。用 SQL 可以很方便表达出我们需要的数据，但每次查询都要扫全表性能很差，这时可以使用[物化视图(Materialized View)](https://en.wikipedia.org/wiki/Materialized_view)，即预计算结果到一张表或 ElasticSearch 索引，就能缩短读路径，提高查询性能。物化视图有多种实现方式，各有明显优缺点，本文介绍用 Flink SQL 实现物化视图这种方案。
 
-## 各有权衡的实现方式
+## 流处理+数据库
 
 物化视图有两种实现方式：
 
