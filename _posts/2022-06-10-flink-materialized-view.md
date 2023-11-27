@@ -23,19 +23,17 @@ tags: stream-processing database
 > RisingWave specializes in providing **incrementally updated, consistent materialized views**
 
 流数据库无法代替传统的关系型数据库，要单独部署，目前普及程度很低。
-在流数据库兴起之前，我们可以用流处理框架（例如 [Apache Flink](https://flink.apache.org/)） 实现物化视图。
+在流数据库兴起之前，还有用流处理框架（例如 [Apache Flink](https://flink.apache.org/)） 实现物化视图这个选择。
 
 ## 流处理实现物化视图
 
-流数据库和流处理框架实现物化视图的原理是一样的，都是监听数据存储的变化([Change Data Capture(CDC)](https://en.wikipedia.org/wiki/Change_data_capture))，经过数据转换、连接和计算，再把结果写进存储服务。
+流数据库和流处理框架实现物化视图的原理是一样的，都是监听数据库的变化([Change Data Capture(CDC)](https://en.wikipedia.org/wiki/Change_data_capture))，经过数据转换、连接和聚合，再把结果写进存储服务。
 
-Flink 还提供了 SQL API，稍后我们会看到它的简洁和强大。
-
-本文的代码 Demo 存放在[Github 仓库](https://github.com/KKKIIO/materialized_view_flink)上。
+下面用 Flink SQL 实现上文说的面试题，代码放在[Github 仓库](https://github.com/KKKIIO/materialized_view_flink)。
 
 ### 题目介绍
 
-首先我们有三张已经存在的业务表，分别是顾客表、预约表、顾客预约习惯表：
+首先有三张已经存在的业务表，分别是顾客表、预约表、顾客预约习惯表：
 
 ```sql
 CREATE TABLE `customer_tab` (
@@ -55,9 +53,13 @@ CREATE TABLE `customer_preference_tab` (
 );
 ```
 
-我们需要展示每个顾客的预约单总数，最后的预约时间，以及猜测下次预约的时间，所有字段可过滤，需分页展示。
+需求是
 
-方便起见我们把结果放到表`customer_reorder_tab`：
+1. 展示每个顾客的预约单总数，最后的预约时间，以及猜测下次预约的时间。
+2. 所有字段可过滤，需分页展示。
+
+生产中为了高效过滤，通常会把结果保存到 ElaticSearch 里。
+为了演示方便我们把结果放到数据库表 `customer_reorder_tab` ：
 
 ```sql
 CREATE TABLE `customer_reorder_tab` (
@@ -74,9 +76,8 @@ CREATE TABLE `customer_reorder_tab` (
 
 ### 读取表数据
 
-[MySQL CDC Connector](https://ververica.github.io/flink-cdc-connectors/master/content/connectors/mysql-cdc.html) 能让我们把 MySQL 表引入 Flink 作为数据来源(Source)，是现成的解决方案，美中不足的是文档不够详细。
-
-我们先映射`customer_tab`、`order_tab`、`customer_preference_tab` MySQL 表到 Flink 里作为 Source：
+[MySQL CDC Connector](https://ververica.github.io/flink-cdc-connectors/master/content/connectors/mysql-cdc.html) 能把 MySQL 表引入 Flink 作为数据来源(Source)。
+我们先映射三张业务表到 Flink 里作为 Source：
 
 ```java
 TableEnvironment env = TableEnvironment.create(EnvironmentSettings.newInstance().inStreamingMode().build());
@@ -86,6 +87,7 @@ env.getConfig().getConfiguration().setString("execution.checkpointing.interval",
 val cdcOptSQL = String.format(
         "WITH ('connector'='mysql-cdc', 'hostname'='%s', 'port'='%d','username'='%s', 'password'='%s', 'database-name'='%s', 'table-name'='%%s', 'server-id'='%%d')",
         mysqlHost, mysqlPort, mysqlUser, mysqlPassword, mysqlDb);
+
 env.executeSql(
         "CREATE TEMPORARY TABLE customer_tab (id BIGINT, first_name STRING, last_name STRING, PRIMARY KEY(id) NOT ENFORCED) "
                 + String.format(cdcOptSQL, "customer_tab", 5401));
@@ -101,9 +103,7 @@ env.executeSql(
 
 ### 写入表数据
 
-[JDBC SQL Connector](https://nightlies.apache.org/flink/flink-docs-release-1.13/docs/connectors/table/jdbc/) 能让我们把 MySQL 表作为 Flink 的输出(Sink)。
-
-我们把 `customer_reorder_tab` 表作为 Sink
+[JDBC SQL Connector](https://nightlies.apache.org/flink/flink-docs-release-1.13/docs/connectors/table/jdbc/) 能让我们把 MySQL 表作为 Flink 的输出(Sink)。 我们把结果表 `customer_reorder_tab` 作为 Sink ：
 
 ```java
 env.executeSql(
@@ -115,7 +115,7 @@ env.executeSql(
 
 ### 聚合计算
 
-我们用 `JOIN` 连接三个表，用 `customer_id` 做分组(`GROUP BY`)聚合出结果，并更新(`INSERT INTO`)到`customer_reorder_tab`表
+到了核心的统计逻辑，我们用 `JOIN` 连接三个表，按 `customer_id` 分组(`GROUP BY`)聚合出结果，并更新(`INSERT INTO`)到`customer_reorder_tab`表
 
 ```java
 env.executeSql(
@@ -129,7 +129,7 @@ env.executeSql(
                 "GROUP BY c.id");
 ```
 
-完成！看一下测试结果：
+非常简短的 SQL。看一下测试结果：
 
 ```
 ...
@@ -155,7 +155,9 @@ after waiting 3s, mismatch count: 0
 
 ![topology](/assets/image/flink-sql-topo.png)
 
-也很直观，容易对应到 SQL 的 Join。
+直观的体现出 SQL 的两个 Join。
+
+如标题所说，几行 SQL 就实现了物化视图。
 
 ## 用 Flink DataStream 理解流处理
 
@@ -385,7 +387,7 @@ public class ReorderCalc extends RichMapFunction<Change, ReorderInfo> {
 
 Flink SQL 这么简洁，这个解决方案可以在生产环境上用吗？
 
-可以，但**门槛**有些高，主要有两个问题：
+**门槛**有些高，主要有两个问题：
 
 1. 运维成本高：Flink 以集群方式部署，如果实现一个物化视图需要部署好几个服务，大概率会引入新的问题。
 
@@ -393,4 +395,5 @@ Flink SQL 这么简洁，这个解决方案可以在生产环境上用吗？
 
 2. 学习/维护成本高：Flink 作为一个通用、高可用、强一致性的流处理框架，复杂度很高。
 
-看来流数据库的兴起不是没有道理的，把计算和存储闭环在一起，降低流处理系统的使用成本。
+流数据库为了降低使用成本，把计算和存储闭环在一个系统里。
+期待它能将简洁强大的流处理技术普及起来。
