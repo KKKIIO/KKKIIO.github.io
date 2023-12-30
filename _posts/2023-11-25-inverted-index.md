@@ -1,16 +1,20 @@
 ---
 layout: post
-title: "倒排索引: 如何快速筛选订单"
+title: "动手写查询引擎"
 date: 2023-11-25 15:16:00 +0800
 categories: engineering
 ---
 
 之前在电商公司做商品发货的业务，我们后台管理系统里订单查询页面，需要支持灵活、丰富的筛选条件，比如筛选出供应商 X 昨天发货的话费充值订单，还要按创建时间倒序分页。
 
-## B 树索引的问题
+## 寻找解决方案
 
-直接构造 SQL 查数据库，是最简单的实现方式。
-通常还需要在数据库上建立索引，以提高查询效率。
+### 数据库 B 树索引
+
+直接查数据库，是最简单的实现方式。
+通常在一些使用频繁、区分度高的字段上建立索引，就可以满足查询的性能要求。
+
+最常用的数据库索引是 [B 树索引](https://en.wikipedia.org/wiki/B-tree)，它的顺序存储结构使它能高效地支持范围查询和排序。
 但是，如果筛选条件是多个属性的组合，那受限于最左匹配原则，一个[B 树多列索引](https://dev.mysql.com/doc/refman/8.0/en/multiple-column-indexes.html)无法覆盖所有组合。
 
 例如给订单表 `orders` 加一个(`provider_id`,`order_status`,`create_time`)的多列索引，它能加速指定供应商、指定状态、按时间排序的查询，但它无法用于缺少供应商 ID 或订单状态的查询。
@@ -25,18 +29,21 @@ select * from orders order by create_time desc;
 ```
 
 为了支持各种组合的筛选条件和排序，需要建立大量的索引，这会大幅降低写入性能。
-或是折中一下，凭经验建立少量索引，但是会有一些查询效率很低的情况。
+或是折中一下，凭经验建立少量索引，但是会有一些查询效率很低的情况，影响用户体验，也会造成数据库负载过高。
 
-## 灵活的倒排索引
+### ElasticSearch 的倒排索引
 
 有经验的同学知道可以用 ElasticSearch 来解决这个问题，相关的解决方案也很成熟。
-这次我们绕开 ElasticSearch，来看看它背后的引擎——倒排索引。
+这次我们透过 ElasticSearch，来看看它背后的引擎——倒排索引。
 
-### 基本结构
+## 倒排索引
 
 倒排索引可以理解为是一个索引键到文档列表的映射，简略地说，就是一个哈希表。
-它的特别之处在于映射值是一个文档 ID 列表，称为倒排列表（postings list）。
-postings list 有很好的压缩效果，还可以互相组合，实现复杂的查询。
+它的特别之处在于映射值是一个文档 ID 列表，称为倒排列表（Postings list）。
+
+![](https://nlp.stanford.edu/IR-book/html/htmledition/img43.png)
+
+Postings list 有很好的压缩效果，还可以互相组合，实现复杂的查询。
 
 ### 组合复杂查询
 
@@ -45,6 +52,8 @@ postings list 有很好的压缩效果，还可以互相组合，实现复杂的
 
 再比如，还有一个供应商 ID 到订单 ID 的哈希表 `map[ProviderID][]ID` ，想找出供应商 X 已完成的订单，又该怎么做？
 类似的，取供应商 X 的订单 ID 列表和已完成的订单 ID 列表的交集就行了。
+
+![term-index-example](/assets/image/term-index-example.png)
 
 这就是倒排索引实现复杂查询的基本思路：先用索引得到每个筛选条件的倒排列表，再用集合运算组合它们。
 
@@ -65,9 +74,9 @@ postings list 有很好的压缩效果，还可以互相组合，实现复杂的
 
 ![sparse-index-sort](/assets/image/sparse-index-sort.png)
 
-### postings list 的实现
+### Postings list 的实现
 
-前面的组合算法，都是基于倒排列表的集合运算，所以倒排列表的实现要支持高效的集合运算。
+前面的组合算法，都是基于集合运算，所以倒排列表的实现要支持高效的集合运算。
 
 ElasticSearch 在他们的博客 [Frame of Reference and Roaring Bitmaps](https://www.elastic.co/cn/blog/frame-of-reference-and-roaring-bitmaps) 中介绍了几种实现，可以概括为压缩列表或位图，两者都可以实现集合运算。
 通过性能基准测试，他们确定了一个可以兼顾压缩率和运算效率的位图实现 [Roaring Bitmap](https://roaringbitmap.org/)。
