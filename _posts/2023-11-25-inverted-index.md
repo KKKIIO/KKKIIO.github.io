@@ -7,7 +7,7 @@ categories: engineering
 
 之前在电商公司做商品发货的业务，我们后台管理系统里订单查询页面，需要支持灵活、丰富的筛选条件，比如筛选出供应商 X 昨天发货的话费充值订单，还要按创建时间倒序分页。
 
-## 寻找解决方案
+## 有哪些解决方案？
 
 ### 数据库 B 树索引
 
@@ -33,8 +33,8 @@ select * from orders order by create_time desc;
 
 ### ElasticSearch 的倒排索引
 
-有经验的同学知道可以用 ElasticSearch 来解决这个问题，相关的解决方案也很成熟。
-这次我们透过 ElasticSearch，来看看它背后的引擎——倒排索引。
+ElasticSearch 很适合这种查询条件灵活、对性能要求高的场景，有很多成熟的方案。
+这次我们绕过 ElasticSearch，来看看它背后的引擎——倒排索引。
 
 ## 倒排索引
 
@@ -55,7 +55,7 @@ Postings list 有很好的压缩效果，还可以互相组合，实现复杂的
 
 ![term-index-example](/assets/image/term-index-example.png)
 
-这就是倒排索引实现复杂查询的基本思路：先用索引得到每个筛选条件的倒排列表，再用集合运算组合它们。
+这就是倒排索引实现复杂查询的基本思路：先用索引得到每个筛选条件的倒排列表，再用**集合运算组合它们**。
 
 ### 加上排序和分页
 
