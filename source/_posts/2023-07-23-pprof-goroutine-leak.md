@@ -2,10 +2,12 @@
 layout: post
 title: "泄露100万个go协程是什么体验？"
 date: 2023-07-23 21:06:00 +0800
-categories: engineering
+tags: [engineering performance]
 ---
 
 我们知道线程会占用内存和 CPU 调度资源，发生泄露时，程序内存会升高，运行效率也会因为过多的线程切换（context switch）而降低，一般上千个线程就会导致性能明显下降。既然 goroutine 被称为“轻量级线程”，那在泄露数量高了几个数量级后，是不是也会导致类似的问题呢？最近我刚好在生产环境遇到了这个问题。
+
+<!--more-->
 
 ## 怎么发现的
 

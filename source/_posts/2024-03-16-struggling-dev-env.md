@@ -2,10 +2,12 @@
 layout: post
 title: "开发环境夹缝求生"
 date: 2024-03-16 17:33:00 +0800
-categories: engineering
+tags: [work]
 ---
 
 我最近工作的后端项目很难在本地运行。
+
+<!--more-->
 
 首先是程序依赖的服务和中间件太多，管理很繁琐。
 
