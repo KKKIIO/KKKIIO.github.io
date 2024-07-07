@@ -2,7 +2,8 @@
 layout: post
 title:  "石头汤"
 date:   2022-01-31 21:56:19 +0800
-categories: team
+tags: [work]
+permalink: team/2022/01/31/stone-soup.html
 ---
 > 三个士兵在打完仗回家乡的途中，他们又累又饿。当他们看到不远处的村庄时，情绪高涨，希望村民们会好心给他们一些饭吃。但在到达了村庄后，他们发现所有的门窗都关紧了。多年战乱，村民们尝过食物短缺的苦后，都十分珍惜自己的食物。
 > 
@@ -17,6 +18,8 @@ categories: team
 > 最后，一锅热气腾腾的、美味的汤做好了，士兵们把石头去掉，跟村民一起分享了这锅汤，在场所有人都喝到了他们过去几个月内尝到过的最好的汤。
 
 《The Pragmatic Programmer》第四章讲了石头汤的故事，让我想起之前一个工作经历，是关于优化代码的。
+
+<!--more-->
 
 ## Geek式的美梦
 
@@ -158,7 +161,7 @@ func (r *OrmProviderRepository) FirstByCode(o *Orm, code string) (*ProviderEntit
 
 #### 好处要足够明显
 
-在每个人都因工作 Burn Out 的情况下，没有触碰痛点是很难提高大家的积极性的。
+每个人有惰性，没有触碰痛点是很难让大家积极改变的。
 
 #### 需要扁平的环境
 

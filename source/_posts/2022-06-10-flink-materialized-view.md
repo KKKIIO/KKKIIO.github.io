@@ -2,8 +2,7 @@
 layout: post
 title: "几行 Flink SQL 实现物化视图"
 date: 2022-06-10 11:35:00 +0800
-categories: engineering
-tags: stream-processing database
+tags: [database]
 ---
 
 几周前面试遇到一道题：在一个预约业务里，展示顾客复购的情况，是典型的在几张业务表上聚合信息的需求。
@@ -13,6 +12,8 @@ tags: stream-processing database
 它是指预计算结果到一张新表，缩短读路径，提高查询性能。
 
 ![Materialized View](https://docs.microsoft.com/en-us/azure/architecture/patterns/_images/materialized-view-pattern-diagram.png)
+
+<!--more-->
 
 ## 数据库的物化视图
 
