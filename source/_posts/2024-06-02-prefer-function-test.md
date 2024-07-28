@@ -7,7 +7,6 @@ tags: [engineering, backend]
 > Most of the tests in the 'IntelliJ Platform' codebase are model-level functional tests.
 >
 > The tests run in a headless environment that uses real production implementations for most components, except for many UI components.
->
 > ...
 > In a product with 20+ years of a lifetime that has gone through many internal refactorings, we find that this benefit dramatically outweighs the downsides of slower test execution and more difficult debugging of failures compared to more isolated unit tests.
 >
