@@ -140,7 +140,7 @@ func (l *Loader) Load(f func(loader *Loader, key string) any, key string) func()
 这里用了锁和 `channel` 来同步，看起来是安全的。
 但它引入了跨 goroutine 的共享数据 `res`。
 
-获取 `res` 时有用 `done` 这个 `channel` 同步，如果 `res` 不会被修改，那便无事发生。
+获取 `res` 用了 `channel` (`<-done`) 同步，如果 `res` 不会被修改，那便无事发生。
 倘若 `res` 会被修改，就会导致[数据竞争(data race)](https://en.wikipedia.org/wiki/Race_condition#Data_race)。
 
 ## Data Race
@@ -149,7 +149,7 @@ Data Race 可以简单理解为线程访问到的内存数据可能不对。
 
 可能有人以为只是会拿到旧数据，但实际上 Data Race 可能拿到不应该存在的脏数据。
 
-比如读一个 64 位整数`int64`，可能会拿到新旧数据各一半的脏数据。[^1]
+比如读一个 64 位整数`int64`，可能会拿到新旧数据各一半(32bit)的脏数据。[^1]
 
 更常见的是，读一个结构体时，可能拿到的是结构体不同字段拼在一起的脏数据。
 
@@ -157,7 +157,7 @@ Data Race 可以简单理解为线程访问到的内存数据可能不对。
 
 ![gorace1](http://research.swtch.com/gorace1.png)
 
-按这个思路，`unwrap` 里读到的 `susp` ，可能是 `type` 为 `func()` ，`value` 却是其他值的脏数据。
+按这个思路，`unwrap` 里读到的 `susp` ，可能是 `type` 为 `func()` ，`value` 却不是函数指针的脏数据。
 
 ## 按图索骥
 
@@ -168,27 +168,27 @@ for i, elem := range value { // <- read fib.go:43
 	sub_i := i
 	sub_susp := elem
 	q = append(q, func() any {
-		v := unwrap(sub_susp) // <-
+		v := unwrap(sub_susp) // <- panic
 		value[sub_i] = v // <- write fib.go:48
 		return v
 	})
 }
 ```
 
-如果说是 Data Race 造成了 `sub_susp` 变脏数据，那也吻合这里对 `[]any` 数组元素的修改。
+如果说是 data race 造成了 `sub_susp` 变脏数据，那也吻合这里对 `[]any` 数组元素的修改。
 
-数组只能是 `Fib` 里的 `value_susps`。
-`value_susps` 会被 `Fib` 返回的闭包引用，而后者作为 `Load` 里的 `res` 被共享。
+被写的`[]any`只能是 `Fib` 里的 `value_susps`。
+它会被 `Fib` 返回的闭包引用，而后者作为 `Load` 里的 `res` 被共享。
 
-当 `Fib` 并发调用时，不同 `goroutine` 会从 `cache` 里拿到同一个 `Fib` 闭包，对同一个 `value_susps` 使用 `Await`。
-当一个 `goroutine` 想把 `unwrap` 结果，`interface{}`类型的整数，写入数组时，另一个 `goroutine` 可能刚好在读，就读到了 `type` 为 `func()` ，`value` 是 0x1a6d [^2] 的脏数据。
+当并发调用 `Fib` 时，不同 goroutine 会从 `cache` 里拿出同一个闭包来执行，对同一个 `value_susps` 使用 `Await`。
+当 goroutine A 想把 `unwrap` 结果，`interface{}` 类型的整数，写入数组时，goroutine B 可能刚好在读同个位置，就读到了 `type` 为 `func()` ，`value` 是 0x1a6d [^2] 的脏数据。
 
 ## 防止 Data Race
 
-出于性能考虑[^3]，Go 只提供同步机制，开发者如果在使用共享数据时没有正确使用同步，就会导致 Data Race。
+出于性能考虑[^3]，Go 只提供同步机制，开发者如果在并发修改共享数据时没有正确使用同步，就会导致 Data Race。
+这符合 Go 语言的设计哲学：大道至简，难做的事情让开发者自己处理。
 
-这符合 Go 语言的设计哲学：大道至简。
-难做的事情就不做，让开发者自己处理。
+要解决例子里的问题，简单的方法是给`Fib`返回的闭包套一层 [sync.OnceValue](https://pkg.go.dev/sync#OnceValue) ，避免并发写。
 
 Go 还提供了 [Data Race Detector](https://go.dev/doc/articles/race_detector) 工具，可以检测出 Data Race ：
 
